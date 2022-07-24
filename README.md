@@ -7,6 +7,12 @@ Hierarchical file system for organising information about DND characters
 1. Write exmaples
 1. Add search tool
 
+   ```sh
+   # https://www.reddit.com/r/commandline/comments/8zqt4s/comment/e2lfm5h
+   grep -rin "$@" . ; find . | grep "$@" | xargs -I % sh -c 'echo %; cat %' 2> /dev/null
+   ```
+
+
 ```
 ├── attacks
 │   └── unarmed
