@@ -23,7 +23,7 @@ fd_flags := '--ignore-case'
 rg_flags := '--smart-case'
 rg_colorize := '''
     rg --colors match:none --colors match:fg:blue '^(?:\./)?(.*/)' --replace '$1'  '''
-fzf_flags := '--select-1 --exit-0 --cycle --height=50% --layout=reverse --history=' + quote(join(cache_dir, '.fzf')) + ' --preview="exec ' + just + ' get {}"'
+fzf_flags := '--select-1 --exit-0 --cycle --height=50% --layout=reverse --header-first --history=' + quote(join(cache_dir, '.fzf')) + ' --preview="exec ' + just + ' get {}"'
 
 
 @_default:
@@ -38,6 +38,7 @@ alias ls := list
 @search *query:
     exec {{just}} open "$(exec {{just}} find-all-interactive "$@")"
 alias s := search
+alias show := search
 
 # Query for the conents of a file. If the file has a #!, invokes it as a script.
 # The script is executed with the following arguments:
@@ -53,9 +54,8 @@ open file:
     #! {{script}}
     if test -f {{quote(file)}} && IFS= read -r line < {{quote(file)}} ; then
         if [ -t 1 ] ; then echo {{quote(file)}} | >&2 {{rg_colorize}} ; fi
-        cd {{quote(parent_directory(file))}} ; name={{quote(file_name(file))}}
-        mkdir -p {{quote(join(cache_dir, parent_directory(file)))}}
-        cache={{quote(join(cache_dir, file))}}
+        dir="$(dirname {{quote(file)}})" ; name="$(basename {{quote(file)}})" ; cd "$dir"
+        mkdir -p {{quote(cache_dir)}}/"$dir" ; cache={{quote(join(cache_dir, file))}}
         if [ -f "$cache" ] && [ "$(tail -n 1 "$cache")" = "$(cksum "$name")" ] ; then
             sed '$d' "$cache" ; exit ; fi
         { case "$line" in
@@ -103,7 +103,7 @@ alias fda := find-all
 
 # Find all files that match a given query interactively.
 @find-all-interactive *query:
-    exec {{just}} find-all "$@" | fzf {{fzf_flags}} | {{rg_colorize}}
+    exec {{just}} find-all "$@" | fzf {{fzf_flags}} --header={{quote(query)}} | {{rg_colorize}}
 
 # Add a positive sign to non-negative numbers.
 @_sign:
