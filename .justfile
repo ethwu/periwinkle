@@ -3,7 +3,7 @@
 set shell := ['dash', '-euc']
 # Initialize scripts with utilities.
 script := '/bin/dash -u
-onfail() { status=$? ; test $status -ne 0 && >&2 echo "$@" ; exit $status ; }'
+onfail() { status=$? ; test $status -ne 0 && >&2 printf "$@" ; >&2 echo ; exit $status ; }'
 # Pass positional arguments to recipes.
 set positional-arguments := true
 
@@ -16,14 +16,17 @@ here := quote(justfile_directory())
 # The default editor.
 editor := quote(env_var_or_default('VISUAL', env_var('EDITOR')))
 
+# Path to the `roll` script.
+roll := quote(justfile_directory() / '.roll')
+
 # Directory to keep cached `get` results.
-cache_dir := join(justfile_directory(), '.cache')
+cache_dir := justfile_directory() / '.cache'
 
 fd_flags := '--ignore-case'
 rg_flags := '--smart-case'
 rg_colorize := '''
     rg --colors match:none --colors match:fg:blue '^(?:\./)?(.*/)' --replace '$1'  '''
-fzf_flags := '--select-1 --exit-0 --filepath-word --cycle --height=50% --layout=reverse --header-first --history=' + quote(join(cache_dir, '.fzf')) + ' --preview="exec ' + just + ' get {}"'
+fzf_flags := '--select-1 --exit-0 --filepath-word --cycle --height=50% --layout=reverse --header-first --history=' + quote(cache_dir / '.fzf') + ' --preview="exec ' + just + ' get {}"'
 
 
 @_default:
@@ -46,15 +49,21 @@ alias s := show
 # - `$1` The relative path of the file from the root of the project (excluding `./`).
 # - `$2` The absolute path to the root of the project.
 @get *query:
-    exec {{just}} open "$(exec {{just}} find "$@" 2> /dev/null)" 2> /dev/null
+    exec {{just}} open "$(exec {{just}} find "$@" 2> /dev/null)"
 
 # Get the contents of a file. If the file has a #!, invokes it as a script.
+# Returns 2 if the file cannot be opened or is empty.
 open file:
     #! {{script}}
-    if test -f {{quote(file)}} && IFS= read -r line < {{quote(file)}} ; then
-        if [ -t 1 ] ; then echo {{quote(file)}} | >&2 {{rg_colorize}} ; fi
+    if [ ! -f {{quote(file)}} ] ; then
+        >&2 printf '`%s` is not a file.\n' {{quote(file)}}
+        exit 2
+    fi
+
+    if [ -t 1 ] ; then echo {{quote(file)}} | >&2 {{rg_colorize}} ; fi
+    if IFS= read -r line < {{quote(file)}} ; then
         dir="$(dirname {{quote(file)}})" ; name="$(basename {{quote(file)}})" ; cd "$dir"
-        mkdir -p {{quote(cache_dir)}}/"$dir" ; cache={{quote(join(cache_dir, file))}}
+        mkdir -p {{quote(cache_dir)}}/"$dir" ; cache={{quote(cache_dir / file)}}
         if [ -f "$cache" ] && [ "$(head -n 1 "$cache")" = "$(cksum "$name")" ] ; then
             sed '1d' "$cache" ; exit ; fi
         cksum "$name" > "$cache"
@@ -63,7 +72,7 @@ open file:
             *) cat "$name" ;;
         esac ; } | tee -a "$cache"
     fi
-    onfail 'Could not open `{{file}}`.'
+    onfail 'Could not open `%s`.' {{quote(file)}}
 
 
 ## Editing Utilities ##
@@ -75,7 +84,14 @@ alias ed := edit
 
 # Copy the contents of a template to the target file.
 @from-template target template='.template':
-    cp {{quote(join(invocation_directory(), template))}} {{quote(target)}}
+    cp {{quote(invocation_directory() / template)}} {{quote(target)}}
+
+## Game Utilities ##
+
+# Roll dice.
+@roll *args:
+    exec {{roll}} "$@"
+alias r := roll
 
 # Get the modifier of a given ability score.
 @modifier score:
@@ -88,7 +104,7 @@ alias mod := modifier
 
 # Find the path of the first file that matches the given query.
 @find +query:
-    exec {{just}} find-all "$@" 2> /dev/null | \
+    exec {{just}} find-all "$@" | \
         rg --multiline '(?-m)^.*\n$' | {{rg_colorize}}
 alias fd := find
 
@@ -110,4 +126,4 @@ alias fda := find-all
 
 # Clean intermediate files.
 clean:
-    rm -rf {{quote(join(justfile_directory(), cache_dir, '*'))}}
+    rm -rf {{quote(justfile_directory() / cache_dir / '*')}}

@@ -1,0 +1,118 @@
+#! /usr/bin/env python3
+
+from __future__ import annotations
+import argparse
+import collections.abc
+import functools
+import os
+import subprocess
+import sys
+import typing
+
+try:
+    import d20
+except ModuleNotFoundError:
+    sys.exit(4)
+
+if typing.TYPE_CHECKING:
+    from typing import Tuple
+
+    from d20.ast import NumberSet
+    from d20.stringifiers import ExpressionNode
+
+# Whether to show colors.
+colors = sys.stdout.isatty() and \
+    int(subprocess.run(('tput', 'colors'),
+                       stdout=subprocess.PIPE).stdout) > 0 \
+    and 'NO_COLOR' not in os.environ
+
+
+@functools.cache
+def sgr(code: int | str | typing.Iterable[int | str]) -> str:
+    """
+    Generates an ANSI SGR escape code if `stdout` points to an interactive
+    shell. Otherwise, returns an empty string.
+    """
+    if colors:
+        if isinstance(code, collections.abc.Iterable):
+            code = ';'.join(map(str, code))
+        return f'\033[{str(code)}m'
+    else:
+        return ''
+
+
+class AnsiStringifier(d20.SimpleStringifier,
+                      typing.Generic[d20.stringifiers.ExpressionNode]):
+    """Stringifies a roll using ANSI escape codes."""
+    class _Context:
+        def __init__(self) -> None:
+            self.in_dropped: bool
+            self.reset()
+
+        def reset(self) -> None:
+            self.in_dropped = False
+
+    # For colorizing rolls. Low to high.
+    ROLL_COLORS = (31, 91, 33, 93, 32, 92)
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._context = self._Context()
+
+    def stringify(self, roll: ExpressionNode) -> str:
+        self._context.reset()
+        return super().stringify(roll)
+
+    def _stringify(self, node: ExpressionNode) -> str:
+        if not node.kept and not self._context.in_dropped:
+            self._context.in_dropped = True
+            inside = super()._stringify(node)
+            self._context.in_dropped = False
+            # Dim dropped rolls.
+            return sgr(2) + sgr(9) + inside + sgr(22) + sgr(29)
+        return super()._stringify(node)
+
+    def _str_expression(self, node: ExpressionNode) -> str:
+        return self._stringify(node.roll)
+
+    def _str_die(self, node: ExpressionNode) -> str:
+        minimum, maximum, size = (0, 90, 100) if node.size == '%' else (1, node.size, node.size)
+        rolls = []
+        for val in node.values:
+            inside = ''
+            if val.number == minimum or val.number == maximum:
+                inside += sgr(1)    # Embolden extreme rolls.
+            inside += self.colorize_roll(val, minimum, size) + sgr(22)
+            rolls.append(inside)
+        return ', '.join(rolls)
+
+    def colorize_roll(self, roll: NumberSet, minimum: int, size: int) -> str:
+        """Colorize a roll."""
+        return sgr(self.ROLL_COLORS[(roll.number - minimum) * len(self.ROLL_COLORS) // size]) + \
+            self._stringify(roll) + sgr(39)
+
+
+def main(args: argparse.Namespace) -> int:
+    """Roll dice."""
+    result = d20.roll(args.expr, stringifier=AnsiStringifier())
+    if args.total:
+        print(str(result.total))
+    else:
+        roll = result.result
+        total = sgr(1) + str(result.total) + sgr(22)
+        if result.crit == d20.CritType.CRIT:
+            crit_marker = sgr(5) + sgr(92) + ' !! ' + sgr(25)
+        elif result.crit == d20.CritType.FAIL:
+            crit_marker = sgr(5) + sgr(91) + ' !! ' + sgr(25)
+        else:
+            crit_marker = ''
+        print(roll + ' = ' + crit_marker + total + crit_marker + sgr(0))
+    return 0
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description=main.__doc__)
+    parser.add_argument('expr', help='expression in standard dice notation')
+    parser.add_argument(
+        '-t', '--total', action='store_true', help='show total')
+    sys.exit(main(parser.parse_args()))
