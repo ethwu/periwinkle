@@ -9,17 +9,10 @@ set positional-arguments := true
 
 # Just.
 just := "exec '" + just_executable() + "' -f '" + justfile() + "' -d '" + invocation_directory() + "'"
+# The justfile directory.
+here := quote(invocation_directory())
 # The default editor.
 editor := env_var_or_default('VISUAL', env_var('EDITOR'))
-
-# Test expression evaluating to whether to include color.
-color := '[ -t 1 -a $(tput colors) -gt 0 -a -z "${NO_COLOR+blank}" ]'
-# # Interactive emphasis color.
-# emph := `{{color}} && { tput bold ; tput setaf 1 ; }`
-# # Interactive normal color.
-# norm := `{{color}} && tput sgr0`
-emph := ''
-norm := ''
 
 fd_flags := '--ignore-case'
 rg_flags := '--smart-case'
@@ -35,18 +28,17 @@ fzf_flags := '--select-1 --exit-0'
 alias ls := list
 
 # Search for the given query in the system.
-# Only for interactive use.
-@search +query:
+@search *query:
     for f in $({{just}} find-all "$@") ; do ({{just}} _emph "$f" get "$f") ; done
 alias s := search
 
-# Get the contents of a file.
-open +query:
+# Get the contents of a file. If a file has a #!, invokes it as a script.
+open *query:
     #! {{script}}
-    filepath="$({{just}} find '{{query}}')"
+    filepath="$({{just}} find-all "$@" | fzf {{fzf_flags}})"
     if test -f "$filepath" && IFS= read -r line < "$filepath" ; then
         case "$line" in
-            ("#!"*) perl "$filepath" ;;
+            ('#!'*) perl "$filepath" {{here}} ;;
             *) cat "$filepath" ;;
         esac
     fi
@@ -54,7 +46,7 @@ alias get := open
 
 # Edit a file that matches the given query.
 @edit +query:
-    file="$({{just}} find-all '{{query}}' | fzf {{fzf_flags}})" && {{editor}} "$file"
+    file="$({{just}} find-all {{quote(query)}} | fzf {{fzf_flags}})" && {{editor}} "$file"
 alias ed := edit
 
 
@@ -62,7 +54,7 @@ alias ed := edit
 
 # Get the modifier of a given ability score.
 @modifier score:
-    echo $(( $({{just}} get stats/abilities/ '{{score}}') / 2 - 5 ))
+    echo $(( $({{just}} get stats/abilities/ {{quote(score)}}) / 2 - 5 ))
 alias mod := modifier
 
 
@@ -77,9 +69,11 @@ find +query:
 alias fd := find
 
 # Find all files that match the given query.
-find-all +query:
+find-all *query:
     #! {{script}}
-    fd {{fd_flags}} --full-path --type f '{{replace(query, ' ', '.*')}}' | rg .
+    fd {{fd_flags}} --full-path --type f --base-directory {{here}} \
+        {{quote(replace(query, ' ', '.*'))}} | \
+        rg --colors match:none --colors match:fg:blue '^\./(.*/)' --replace '$1'
     onfail 'No files match query `{{query}}`.'
 alias fda := find-all
 
@@ -87,10 +81,10 @@ alias fda := find-all
 _emph message:
     #! {{script}}
     if [ -t 1 -a $(tput colors) -gt 0 -a -z "${NO_COLOR+blank}" ] ; then
-        emph="$(tput bold)$(tput setaf 1)"
+        emph="$(tput bold)$(tput setaf 5)"
         norm="$(tput sgr0)"
     else
         emph=
         norm=
     fi
-    echo "$emph{{message}}$norm"
+    echo "$emph"{{quote(message)}}"$norm"
