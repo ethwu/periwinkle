@@ -34,11 +34,10 @@ fzf_flags := '--select-1 --exit-0 --filepath-word --cycle --height=50% --layout=
     exa --tree --git-ignore --ignore-glob="$(cat .ignore | sd '(\w)\n(\w)' '$1|$2')"
 alias ls := list
 
-# Search interactively for the given query in the system.
-@search *query:
+# Show an entry in the system interactively.
+@show *query:
     exec {{just}} open "$(exec {{just}} find-all-interactive "$@")"
-alias s := search
-alias show := search
+alias s := show
 
 # Query for the conents of a file. If the file has a #!, invokes it as a script.
 # The script is executed with the following arguments:
@@ -47,7 +46,7 @@ alias show := search
 # - `$1` The relative path of the file from the root of the project (excluding `./`).
 # - `$2` The absolute path to the root of the project.
 @get *query:
-    exec {{just}} open "$(exec {{just}} find "$@")"
+    exec {{just}} open "$(exec {{just}} find "$@" 2> /dev/null)" 2> /dev/null
 
 # Get the contents of a file. If the file has a #!, invokes it as a script.
 open file:
@@ -80,8 +79,8 @@ alias ed := edit
 
 # Get the modifier of a given ability score.
 @modifier score:
-    echo $(( $(exec {{just}} get stats/abilities/ {{quote(score)}}) / 2 - 5 )) | \
-        exec {{just}} _sign
+    echo $(( $(exec {{just}} get stats/abilities/ {{quote(score)}} 2> /dev/null) / 2 - 5 )) | \
+        exec {{just}} _sign 2> /dev/null
 alias mod := modifier
 
 
@@ -89,7 +88,8 @@ alias mod := modifier
 
 # Find the path of the first file that matches the given query.
 @find +query:
-    exec {{just}} find-all "$@" |  rg --multiline '(?-m)^.*\n$' | {{rg_colorize}}
+    exec {{just}} find-all "$@" 2> /dev/null | \
+        rg --multiline '(?-m)^.*\n$' | {{rg_colorize}}
 alias fd := find
 
 # Find all files that match the given query.
@@ -101,7 +101,8 @@ alias fda := find-all
 
 # Find all files that match a given query interactively.
 @find-all-interactive *query:
-    exec {{just}} find-all "$@" | fzf {{fzf_flags}} --query={{quote(query)}} | {{rg_colorize}}
+    exec {{just}} find-all "$@" | \
+        fzf {{fzf_flags}} --query={{quote(query)}} | {{rg_colorize}}
 
 # Add a positive sign to non-negative numbers.
 @_sign:
@@ -109,4 +110,4 @@ alias fda := find-all
 
 # Clean intermediate files.
 clean:
-    rm -rf {{join(justfile_directory(), cache_dir, '*')}}
+    rm -rf {{quote(join(justfile_directory(), cache_dir, '*'))}}
