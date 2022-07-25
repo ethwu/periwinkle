@@ -35,38 +35,43 @@ fzf_flags := '--select-1 --exit-0 --cycle --height=50% --preview="exec ' + just 
     exa --tree --git-ignore --ignore-glob="$(cat .ignore | sd '(\w)\n(\w)' '$1|$2')"
 alias ls := list
 
-# Search for the given query in the system.
-@search *query:
-    for f in $(exec {{just}} find-all-interactive "$@") ; do {{just}} _emph "$f" get "$f" ; done
+# Search interactively for the given query in the system.
+search *query:
+    #! {{script}}
+    cleanup() { rm {{quiet}} ; }
+    trap cleanup INT EXIT
+    mkdir -p {{quote(cache_dir)}} ; touch {{quiet}}
+    file="$(exec {{just}} find-all-interactive "$@")"
+    cleanup
+    exec {{just}} open "$file"
 alias s := search
 
-# Get the contents of a file. If a file has a #!, invokes it as a script.
+# Query for the conents of a file. If the file has a #!, invokes it as a script.
 # The script is executed with the following arguments:
 # - `$PWD` The directory containing the file.
 # - `$0` The name of the file.
 # - `$1` The relative path of the file from the root of the project (excluding `./`).
 # - `$2` The absolute path to the root of the project.
-get *query:
+@get *query:
+    exec {{just}} open "$(exec {{just}} find "$@")"
+
+# Get the contents of a file. If the file has a #!, invokes it as a script.
+open file:
     #! {{script}}
-    clean() { if [ -e {{quiet}} ] && [ "$(cat {{quiet}})" = "$PPID" ] ; then rm {{quiet}} ; fi ; }
-    trap clean INT EXIT
-    if [ ! -e {{quiet}} ] ; then mkdir -p {{quote(cache_dir)}} ; echo "$PPID" > {{quiet}} ; fi
-    file="$(exec {{just}} find-all-interactive "$@")"
-    clean
-    if test -f "$file" && IFS= read -r line < "$file" ; then
-        >&2 {{just}} _emph "$file"
-        dir="$(dirname "$file")" ; name="$(basename "$file")" ; cd "$dir"
-        mkdir -p {{quote(cache_dir)}}/"$dir" ; cache={{quote(cache_dir)}}/"$file"
+    if test -f {{quote(file)}} && IFS= read -r line < {{quote(file)}} ; then
+        >&2 {{just}} _emph {{quote(file)}}
+        cd {{quote(parent_directory(file))}} ; name={{quote(file_name(file))}}
+        mkdir -p {{quote(join(cache_dir, parent_directory(file)))}}
+        cache={{quote(join(cache_dir, file))}}
         if [ -f "$cache" ] && [ "$(tail -n 1 "$cache")" = "$(cksum "$name")" ] ; then
             sed '$d' "$cache" ; exit ; fi
         { case "$line" in
-                ('#!'*) perl "$name" "$file" {{here}} ;;
+                ('#!'*) perl "$name" {{quote(file)}} {{here}} ;;
                 *) cat "$name" ;;
             esac ; } | tee "$cache"
             cksum "$name" >> "$cache"
     fi
-    onfail 'Could not get `{{query}}`.'
-alias open := get
+    onfail 'Could not open `{{file}}`.'
 
 
 ## Editing Utilities ##
