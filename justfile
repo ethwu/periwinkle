@@ -23,7 +23,7 @@ fd_flags := '--ignore-case'
 rg_flags := '--smart-case'
 rg_colorize := '''
     rg --colors match:none --colors match:fg:blue '^(?:\./)?(.*/)' --replace '$1'  '''
-fzf_flags := '--select-1 --exit-0 --cycle --height=50% --layout=reverse --header-first --history=' + quote(join(cache_dir, '.fzf')) + ' --preview="exec ' + just + ' get {}"'
+fzf_flags := '--select-1 --exit-0 --filepath-word --cycle --height=50% --layout=reverse --header-first --history=' + quote(join(cache_dir, '.fzf')) + ' --preview="exec ' + just + ' get {}"'
 
 
 @_default:
@@ -78,8 +78,6 @@ alias ed := edit
 @from-template target template='.template':
     cp {{quote(join(invocation_directory(), template))}} {{quote(target)}}
 
-### Game Utilities ###
-
 # Get the modifier of a given ability score.
 @modifier score:
     echo $(( $(exec {{just}} get stats/abilities/ {{quote(score)}}) / 2 - 5 )) | \
@@ -97,13 +95,13 @@ alias fd := find
 # Find all files that match the given query.
 @find-all *query:
     fd {{fd_flags}} --type f --base-directory {{here}} | \
-        fzf {{fzf_flags}} --filter={{quote(query)}} | \
+        fzf {{fzf_flags}} --exact --filter={{quote(query)}} | \
         {{rg_colorize}}
 alias fda := find-all
 
 # Find all files that match a given query interactively.
 @find-all-interactive *query:
-    exec {{just}} find-all "$@" | fzf {{fzf_flags}} --header={{quote(query)}} | {{rg_colorize}}
+    exec {{just}} find-all "$@" | fzf {{fzf_flags}} --query={{quote(query)}} | {{rg_colorize}}
 
 # Add a positive sign to non-negative numbers.
 @_sign:
