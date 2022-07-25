@@ -7,20 +7,28 @@ onfail() { status=$? ; test $status -ne 0 && >&2 echo "$@" ; exit $status ; }'
 # Pass positional arguments to recipes.
 set positional-arguments := true
 
-# Just.
-just := "exec '" + just_executable() + "' -f '" + justfile() + "' -d '" + invocation_directory() + "'"
+# Path to just.
+just := quote(just_executable())
+# The current working directory.
+cwd := quote(invocation_directory())
 # The justfile directory.
-here := quote(invocation_directory())
+here := quote(justfile_directory())
 # The default editor.
-editor := env_var_or_default('VISUAL', env_var('EDITOR'))
+editor := quote(env_var_or_default('VISUAL', env_var('EDITOR')))
+
+# Directory to keep cached `get` results.
+cache_dir := join(justfile_directory(), '.cache')
+# If this file exists, run quietly.
+quiet := quote(join(cache_dir, '.quiet'))
 
 fd_flags := '--ignore-case'
 rg_flags := '--smart-case'
 
-fzf_flags := '--select-1 --exit-0'
+fzf_flags := '--select-1 --exit-0 --cycle --height=50% --preview="exec ' + just + ' get {}"'
+
 
 @_default:
-    {{just}} --list
+    cd {{cwd}} && exec {{just}} --list
 
 # List all files in the system.
 @list:
@@ -29,32 +37,55 @@ alias ls := list
 
 # Search for the given query in the system.
 @search *query:
-    for f in $({{just}} find-all "$@") ; do ({{just}} _emph "$f" get "$f") ; done
+    for f in $(exec {{just}} find-all-interactive "$@") ; do {{just}} _emph "$f" get "$f" ; done
 alias s := search
 
 # Get the contents of a file. If a file has a #!, invokes it as a script.
-open *query:
+# The script is executed with the following arguments:
+# - `$PWD` The directory containing the file.
+# - `$0` The name of the file.
+# - `$1` The relative path of the file from the root of the project (excluding `./`).
+# - `$2` The absolute path to the root of the project.
+get *query:
     #! {{script}}
-    filepath="$({{just}} find-all "$@" | fzf {{fzf_flags}})"
-    if test -f "$filepath" && IFS= read -r line < "$filepath" ; then
-        case "$line" in
-            ('#!'*) perl "$filepath" {{here}} ;;
-            *) cat "$filepath" ;;
-        esac
+    clean() { if [ -e {{quiet}} ] && [ "$(cat {{quiet}})" = "$PPID" ] ; then rm {{quiet}} ; fi ; }
+    trap clean INT EXIT
+    if [ ! -e {{quiet}} ] ; then mkdir -p {{quote(cache_dir)}} ; echo "$PPID" > {{quiet}} ; fi
+    file="$(exec {{just}} find-all-interactive "$@")"
+    clean
+    if test -f "$file" && IFS= read -r line < "$file" ; then
+        >&2 {{just}} _emph "$file"
+        dir="$(dirname "$file")" ; name="$(basename "$file")" ; cd "$dir"
+        mkdir -p {{quote(cache_dir)}}/"$dir" ; cache={{quote(cache_dir)}}/"$file"
+        if [ -f "$cache" ] && [ "$(tail -n 1 "$cache")" = "$(cksum "$name")" ] ; then
+            sed '$d' "$cache" ; exit ; fi
+        { case "$line" in
+                ('#!'*) perl "$name" "$file" {{here}} ;;
+                *) cat "$name" ;;
+            esac ; } | tee "$cache"
+            cksum "$name" >> "$cache"
     fi
-alias get := open
+    onfail 'Could not get `{{query}}`.'
+alias open := get
+
+
+## Editing Utilities ##
 
 # Edit a file that matches the given query.
 @edit +query:
-    file="$({{just}} find-all {{quote(query)}} | fzf {{fzf_flags}})" && {{editor}} "$file"
+    file="$(exec {{just}} find-all-interactive "$@")" && {{editor}} "$file"
 alias ed := edit
 
+# Copy the contents of a template to the target file.
+@from-template target template='.template':
+    cp {{quote(join(invocation_directory(), template))}} {{quote(target)}}
 
 ### Game Utilities ###
 
 # Get the modifier of a given ability score.
 @modifier score:
-    echo $(( $({{just}} get stats/abilities/ {{quote(score)}}) / 2 - 5 ))
+    echo $(( $(exec {{just}} get stats/abilities/ {{quote(score)}}) / 2 - 5 )) | \
+        exec {{just}} _sign
 alias mod := modifier
 
 
@@ -63,10 +94,14 @@ alias mod := modifier
 # Find the path of the first file that matches the given query.
 find +query:
     #! {{script}}
-    files="$({{just}} find-all "$@")" || exit $?
+    files="$(exec {{just}} find-all "$@")" || exit $?
     echo "$files" | rg {{rg_flags}} --multiline '(?-m)^.*\n$'
     onfail 'More than one file matches query `{{query}}`.'
 alias fd := find
+
+# Find all files that match a given query interactively.
+@find-all-interactive *query:
+    exec {{just}} find-all "$@" | fzf {{fzf_flags}} --query={{quote(query)}}
 
 # Find all files that match the given query.
 find-all *query:
@@ -80,11 +115,17 @@ alias fda := find-all
 # Print with emphasis.
 _emph message:
     #! {{script}}
-    if [ -t 1 -a $(tput colors) -gt 0 -a -z "${NO_COLOR+blank}" ] ; then
+    test -f {{quiet}} && exit
+    if [ -z "${COLOR+blank}" ] || [ -t 1 -a $(tput colors) -gt 0 -a -z "${NO_COLOR+blank}" ] ; then
         emph="$(tput bold)$(tput setaf 5)"
         norm="$(tput sgr0)"
-    else
-        emph=
-        norm=
-    fi
+    else emph= ; norm= ; fi
     echo "$emph"{{quote(message)}}"$norm"
+
+# Add a positive sign to non-negative numbers.
+@_sign:
+    sd '^([^-])' '+$1'
+
+# Clean intermediate files.
+clean:
+    rm -rf {{quote(cache_dir)}}
