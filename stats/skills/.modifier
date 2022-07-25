@@ -1,0 +1,29 @@
+#! /bin/sh
+
+if [ $# -lt 2 ] ; then
+    >&2 echo "Get the modifier of a skill."
+    >&2 echo "Usage: $0 <skill> <ability>"
+    exit 1
+fi
+
+# The modifier for this skill.
+modifier="$(exec just modifier "$2")"
+
+# Pattern matching this skill's name.
+skill="$(exec just ws-match "$1")"
+rg_flags=-iq
+
+if just get proficiencies | rg $rg_flags "$skill" ; then
+    # Proficiency bonus.
+    bonus="$(just get proficiency)"
+
+    # Add the proficiency bonus to the modifier.
+    let modifier=modifier+bonus
+
+    # Double the proficiency bonus with expertise.
+    if just get expertise | rg $rg_flags "$skill" ; then
+        let modifier=modifier+bonus
+    fi
+fi
+
+echo "$modifier" | exec just _sign

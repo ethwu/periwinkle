@@ -1,6 +1,6 @@
 #! /bin/sh
 
 # The ability corresponding to this skill.
-ability=dexterity
+ability=
 
 exec ./.modifier "$0" "$ability"

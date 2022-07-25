@@ -1,2 +1,6 @@
 #! /bin/sh
-echo "$(just modifier intelligence)"
+
+# The ability corresponding to this skill.
+ability=intelligence
+
+exec ./.modifier "$0" "$ability"

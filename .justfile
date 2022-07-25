@@ -3,7 +3,7 @@
 set shell := ['dash', '-euc']
 # Initialize scripts with utilities.
 script := '/bin/dash -u
-onfail() { status=$? ; test $status -ne 0 && >&2 printf "$@" ; >&2 echo ; exit $status ; }'
+onfail() { status=$? ; test $status -ne 0 && { >&2 printf "$@" ; >&2 echo ; exit $status ; } ; }'
 # Pass positional arguments to recipes.
 set positional-arguments := true
 
@@ -30,7 +30,7 @@ fzf_flags := '--select-1 --exit-0 --filepath-word --cycle --height=50% --layout=
 
 
 @_default:
-    cd {{cwd}} && exec {{just}} --list
+    exec {{just}} show
 
 # List all files in the system.
 @list:
@@ -48,8 +48,11 @@ alias s := show
 # - `$0` The name of the file.
 # - `$1` The relative path of the file from the root of the project (excluding `./`).
 # - `$2` The absolute path to the root of the project.
-@get *query:
-    exec {{just}} open "$(exec {{just}} find "$@" 2> /dev/null)"
+get *query:
+    #! {{script}}
+    file="$(exec {{just}} find "$@")"
+    onfail 'Ambiguous query `%s`.' {{quote(query)}}
+    exec {{just}} open "$file"
 
 # Get the contents of a file. If the file has a #!, invokes it as a script.
 # Returns 2 if the file cannot be opened or is empty.
@@ -72,10 +75,14 @@ open file:
             *) cat "$name" ;;
         esac ; } | tee -a "$cache"
     fi
-    onfail 'Could not open `%s`.' {{quote(file)}}
 
 
 ## Editing Utilities ##
+
+# Get the project root.
+@root: 
+    echo {{here}}
+alias home := root
 
 # Edit a file that matches the given query.
 @edit +query:
@@ -83,8 +90,8 @@ open file:
 alias ed := edit
 
 # Copy the contents of a template to the target file.
-@from-template target template='.template':
-    cp {{quote(invocation_directory() / template)}} {{quote(target)}}
+from-template target template='.template':
+    cp {{quote(invocation_directory() / template)}} {{quote(invocation_directory() / target)}}
 
 ## Game Utilities ##
 
@@ -95,8 +102,8 @@ alias r := roll
 
 # Get the modifier of a given ability score.
 @modifier score:
-    echo $(( $(exec {{just}} get stats/abilities/ {{quote(score)}} 2> /dev/null) / 2 - 5 )) | \
-        exec {{just}} _sign 2> /dev/null
+    echo $(( $(exec {{just}} get stats/abilities/ {{quote(score)}}) / 2 - 5 )) 2> /dev/null | \
+        exec {{just}} _sign
 alias mod := modifier
 
 
@@ -120,9 +127,14 @@ alias fda := find-all
     exec {{just}} find-all "$@" | \
         fzf {{fzf_flags}} --query={{quote(query)}} | {{rg_colorize}}
 
+# Get a regex pattern that accepts spaces, underscores, or hyphens in place of each other.
+@whitespace-match pattern:
+    echo {{quote(pattern)}} | sd '[ _-]' '[ _-]'
+alias ws-match := whitespace-match
+
 # Add a positive sign to non-negative numbers.
 @_sign:
-    sd '^([^-])' '+$1'
+    sd '^([0-9])' '+$1'
 
 # Clean intermediate files.
 clean:

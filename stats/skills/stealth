@@ -1,2 +1,6 @@
 #! /bin/sh
-echo "$(just modifier dexterity)"
+
+# The ability corresponding to this skill.
+ability=dexterity
+
+exec ./.modifier "$0" "$ability"
