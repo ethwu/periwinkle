@@ -56,13 +56,13 @@ open file:
         if [ -t 1 ] ; then echo {{quote(file)}} | >&2 {{rg_colorize}} ; fi
         dir="$(dirname {{quote(file)}})" ; name="$(basename {{quote(file)}})" ; cd "$dir"
         mkdir -p {{quote(cache_dir)}}/"$dir" ; cache={{quote(join(cache_dir, file))}}
-        if [ -f "$cache" ] && [ "$(tail -n 1 "$cache")" = "$(cksum "$name")" ] ; then
-            sed '$d' "$cache" ; exit ; fi
+        if [ -f "$cache" ] && [ "$(head -n 1 "$cache")" = "$(cksum "$name")" ] ; then
+            sed '1d' "$cache" ; exit ; fi
+        cksum "$name" > "$cache"
         { case "$line" in
-                ('#!'*) perl "$name" {{quote(file)}} {{here}} ;;
-                *) cat "$name" ;;
-            esac ; } | tee "$cache"
-            cksum "$name" >> "$cache"
+            ('#!'*) perl "$name" {{quote(file)}} {{here}} ;;
+            *) cat "$name" ;;
+        esac ; } | tee -a "$cache"
     fi
     onfail 'Could not open `{{file}}`.'
 
