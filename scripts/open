@@ -59,7 +59,7 @@ if IFS= read -r line < "$1"; then
     cd "$parent"
 
     # The path to the directory containing the cache file.
-    cache_dir="$here/$CACHE_DIR/$parent"
+    cache_dir="$CACHE_DIR/$parent"
     # The path to the cache file.
     cache_file="$cache_dir/$filename"
 
