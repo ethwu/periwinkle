@@ -1,0 +1,4 @@
+#! /bin/sh
+
+# Add a positive sign to non-negative numbers.
+sd '^([0-9])' '+$1'

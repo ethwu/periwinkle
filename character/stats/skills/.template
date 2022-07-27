@@ -1,0 +1,42 @@
+#! /usr/bin/env python3
+
+import inspect
+import sys
+
+if __name__ != '__main__':
+    sys.exit(0)
+
+STRENGTH = 'strength'
+DEXTERITY = 'dexterity'
+CONSTITUTION = 'constitution'
+INTELLIGENCE = 'intelligence'
+WISDOM = 'wisdom'
+CHARISMA = 'charisma'
+abilities = {
+    'acrobatics': DEXTERITY,
+    'animal_handling': WISDOM,
+    'arcana': INTELLIGENCE,
+    'athletics': STRENGTH,
+    'deception': CHARISMA,
+    'history': INTELLIGENCE,
+    'insight': WISDOM,
+    'intimidation': CHARISMA,
+    'investigation': INTELLIGENCE,
+    'medicine': WISDOM,
+    'nature': INTELLIGENCE,
+    'perception': WISDOM,
+    'performance': CHARISMA,
+    'persuasion': CHARISMA,
+    'religion': INTELLIGENCE,
+    'sleight_of_hand': DEXTERITY,
+    'stealth': DEXTERITY,
+    'survival': WISDOM,
+}
+
+for skill in sys.argv[1:]:
+    with open(skill, 'w') as f:
+        f.write(inspect.cleandoc(f'''
+            #! /bin/sh
+            # no-cache
+            skill-modifier "$0" {abilities[skill]}
+        '''))

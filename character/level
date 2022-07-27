@@ -1,0 +1,3 @@
+#! /bin/sh
+# no-cache
+exec just get /info/"$0"

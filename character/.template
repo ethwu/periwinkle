@@ -1,0 +1,15 @@
+#! /usr/bin/python3
+
+import inspect
+import sys
+
+if __name__ != '__main__':
+    sys.exit(0)
+
+for f in sys.argv[1:]:
+    with open(f, 'w') as f:
+        f.write(inspect.cleandoc('''
+            #! /bin/sh
+            # no-cache
+            exec just get /info/"$0"
+        '''))
