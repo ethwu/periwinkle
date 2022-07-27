@@ -1,0 +1,2 @@
+#! /bin/sh
+exec find-all "$*" | exec rg --multiline '(?-m)^.*\n$' | exec colorize-path

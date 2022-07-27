@@ -6,22 +6,26 @@ set positional-arguments := true
 # Load `.env` files.
 set dotenv-load := true
 
+
 # Path to the `just` executable.
-just := quote(just_executable()) + ' -d ' + quote(invocation_directory())
+just := quote(just_executable())
 # Alias for the project root directory.
 here := justfile_directory()
 # Alias for the call site directory.
 call_site := invocation_directory()
 
-# Default template file name.
-template := '.template'
 
 # Get the main project directory from the `MAIN` environment variable
 main := env_var('MAIN')
 # List of projects.
 projects := main + ' character class'
 # Directory containing scripts usable in runnable data.
-scripts := '.'
+export SCRIPTS := 'scripts'
+# Add scripts to PATH.
+export PATH := here / SCRIPTS + ':' + env_var('PATH')
+
+# Default template file name.
+template := '.template'
 
 whoami:
     echo parent
@@ -46,7 +50,7 @@ from-template +targets:
 
 # Roll dice.
 roll *args:
-    exec {{scripts}}/roll "$@"
+    exec {{quote(SCRIPTS / 'roll')}} "$@"
 alias r := roll
 
 
@@ -57,10 +61,10 @@ alias r := roll
     echo {{quote(here)}}
 alias home := root
 
-# Get the `PATH` variable to use in runnable data scripts.
+# Get a `PATH` including project scripts.
 @path:
-    echo {{quote(here / scripts)}}":$PATH"
+    echo "$PATH"
 
 # Clean intermediate files.
 clean:
-    for i in {{projects}} ; do {{just}} -f "$i/.justfile" clean ; done
+    for i in {{projects}} ; do {{just}} "$i"/clean ; done

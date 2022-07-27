@@ -1,0 +1,2 @@
+#! /bin/sh
+rg --colors match:none --colors match:fg:blue '(?:^\./)?(.*/|'')*' --replace '$1'

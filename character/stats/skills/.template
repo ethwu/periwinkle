@@ -38,5 +38,5 @@ for skill in sys.argv[1:]:
         f.write(inspect.cleandoc(f'''
             #! /bin/sh
             # no-cache
-            skill-modifier "$0" {abilities[skill]}
+            skill-modifier "$2" "$0" {abilities[skill]}
         '''))

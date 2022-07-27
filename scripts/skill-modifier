@@ -1,0 +1,31 @@
+#! /bin/sh
+
+if [ $# -lt 3 ] ; then
+    >&2 echo "Get the modifier of a skill."
+    >&2 echo "Usage: $0 <home> <skill> <ability>"
+    exit 64
+fi
+
+cd "$1"
+
+# The modifier for this skill.
+modifier="$(exec ability-score-modifier "$1" "$3")"
+
+# Pattern matching this skill's name.
+skill="$(exec ws-match "$2")"
+rg_flags=-iq
+
+if exec get proficiencies | exec rg $rg_flags "$skill" ; then
+    # Proficiency bonus.
+    bonus="$(just get /stats/proficiency)"
+
+    # Add the proficiency bonus to the modifier.
+    modifier=$(( modifier+bonus ))
+
+    # Double the proficiency bonus with expertise.
+    if exec get expertise | exec rg $rg_flags "$skill" ; then
+        modifier=$(( modifier+bonus ))
+    fi
+fi
+
+echo "$modifier" | exec sign

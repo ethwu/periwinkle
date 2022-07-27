@@ -1,3 +1,3 @@
 #! /bin/sh
 # no-cache
-skill-modifier "$0" intelligence
+skill-modifier "$2" "$0" intelligence

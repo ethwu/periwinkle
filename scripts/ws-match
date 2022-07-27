@@ -3,7 +3,7 @@
 if [ $# -lt 1 ] ; then
     >&2 echo 'Get a regex pattern that accepts spaces, underscores, or hyphens in place of each other.'
     >&2 echo "Usage: $0 <pattern>"
-    exit 1
+    exit 64
 fi
 
 echo "$1" | sd '[ _-]' '[ _-]'

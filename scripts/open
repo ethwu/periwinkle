@@ -1,0 +1,100 @@
+#! /bin/sh
+
+if [ $# -lt 1 ] ; then
+    >&2 cat <<EOF
+Opens a file by its name relative to the present working directory.
+Usage: $0 <file>
+
+When opening a file, if the first line of the file starts with #! it is executed
+using \`perl\` (which will interpret the #! line). The stdout of this call is
+returned as the file's contents. Otherwise, the contents of the file are output
+with \`cat\`.
+
+Files are executed from their parent directory. Their relative path to the
+current working directory is passed as \$1, and the current working directory is
+passed as \$2.
+
+Results are cached in \$CACHE_DIR. A file's contents is recomputed if the
+checksum as computed by \`cksum\` changes. If the file's contents should be
+recomputed every time, then the string \`no-cache\` or \`nocache\` must appear
+in the second line of the file.
+
+Exit Codes:
+	64	Incorrect usage.
+	66	File was not readable.
+EOF
+    exit 64
+fi
+
+# Get the cache dir from the environment.
+CACHE_DIR="${CACHE_DIR-"$PWD/.cache"}"
+
+if [ ! -d "$CACHE_DIR" ] ; then
+    # Skip caching.
+    >&2 printf '`%s` is not a directory. Skipping caching.\n' "$CACHE_DIR"
+    no_cache=true
+fi
+
+# Check that the file exists and is a file.
+if [ ! -f "$1" ] ; then
+    >&2 printf '`%s` is not a file.\n' "$1"
+    exit 66
+fi
+
+# If we are on an interactive terminal, print the colorized file name to stderr.
+if [ -t 1 ] ; then
+    exec echo "$1" | >&2 exec colorize-path
+fi
+
+# Read in one line from the file.
+if IFS= read -r line < "$1"; then
+    # The relative path of the parent directory to the present working directory.
+    parent="$(exec dirname "$1")"
+    # The file name.
+    filename="$(exec basename "$1")"
+
+    # The present working directory.
+    here="$PWD"
+    # chdir into the parent directory.
+    cd "$parent"
+
+    # The path to the directory containing the cache file.
+    cache_dir="$here/$CACHE_DIR/$parent"
+    # The path to the cache file.
+    cache_file="$cache_dir/$filename"
+
+    # Disable the cache.
+    if [ -n "$no_cache" ] ; then
+        cache_file=/dev/null
+    else
+        # Create the cache directory.
+        mkdir -p "$cache_dir"
+    fi
+
+    # Compute the checksum.
+    checksum="$(exec cksum "$filename")"
+
+    # If the cache is up-to-date, return it instead.
+    if [ -f "$cache_file" ] && [ "$(exec head -n 1 "$cache_file")" = "$checksum" ] &&
+        ! ( exec sed '2q;d' "$filename" | exec rg -q 'no[-]cache' ) ; then
+        exec sed '1d' "$cache_file"
+    fi
+
+    # The cache was not up-to-date, recompute.
+
+    # Write the checksum to the cache file.
+    echo "$checksum" > "$cache_file"
+
+    # Interpret the file.
+    { case "$line" in
+        '#!'*)
+            # Found a #!, use `perl` to interpret. We are currently in the
+            # parent directory of the script.
+            perl "$filename" "$1" "$here"
+            ;;
+        *)
+            # Return the file's contents as-is.
+            cat "$filename"
+            ;;
+    esac ; } | exec tee -a "$cache_file"
+fi

@@ -1,0 +1,8 @@
+#! /bin/sh
+
+exec find-all "$@" |
+    exec sd '^(.)' './$1' |
+    exec fzf --query="$@" --select-1 --exit-0 --filepath-word --cycle \
+        --height=50% --layout=reverse --header-first \
+        --preview='get {}' |
+    exec colorize-path

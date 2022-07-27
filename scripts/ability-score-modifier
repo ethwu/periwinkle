@@ -1,0 +1,11 @@
+#! /bin/sh
+
+if [ $# -lt 2 ] ; then
+    >&2 echo 'Get the modifier of a given ability score.'
+    >&2 echo "Usage: $0 <home> <ability>"
+    exit 64
+fi
+
+cd "$1"
+# Get the modifier of a given ability score.
+echo $(( $(exec get /stats/abilities/ "$2") / 2 - 5 )) 2> /dev/null | sign

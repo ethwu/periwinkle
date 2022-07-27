@@ -1,0 +1,21 @@
+#! /bin/sh
+
+if [ "$1" = --help ] ; then
+    >&2 cat <<EOF
+Find all files that match the given query.
+Usage: $0 [query]
+
+Leading slashes can be used to select paths starting at the current working
+directory.
+EOF
+    exit 64
+fi
+
+# Get the cache dir from the environment.
+CACHE_DIR="${CACHE_DIR-$PWD/.cache}"
+
+# Translate leading slash into `./`.
+filter="$(echo "$*" | exec sd '^/' './')"
+exec fd --ignore-case --type=f --base-directory="$PWD" |
+    fzf --exact --filter="$filter" --select-1 --exit-0 |
+    colorize-path
